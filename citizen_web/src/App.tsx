@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { LoginView } from './Views/LoginView';
 import { HomeView } from './Views/HomeView';
 import { ARView } from './Views/ARView';
+import { SpendView } from './Views/SpendView';
 
 const MainContent = () => {
   const { user, isLoading } = useAuth();
@@ -20,6 +21,10 @@ const MainContent = () => {
 
   if (currentView === 'AR') {
     return <ARView onBack={() => setCurrentView('HOME')} />;
+  }
+
+  if (currentView === 'SPEND') {
+    return <SpendView onBack={() => setCurrentView('HOME')} />;
   }
 
   return <HomeView onNavigate={setCurrentView} />;

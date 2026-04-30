@@ -59,6 +59,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (view: string) => void })
         </button>
 
         <button 
+          onClick={() => onNavigate('SPEND')}
           className="glass" 
           style={{ padding: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', border: 'none' }}
         >

@@ -47,4 +47,9 @@ export const api = {
     
   getBalance: (userId: string) => request(`/api/coins/balance/${userId}`),
   getHistory: (userId: string) => request(`/api/coins/history/${userId}`),
+  generateQr: (userId: string, amount: number) => 
+    request('/api/coins/generate-qr', {
+      method: 'POST',
+      body: JSON.stringify({ userId, amount }),
+    }),
 };
