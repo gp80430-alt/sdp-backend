@@ -2,10 +2,21 @@
 export const BASE_URL = 'https://sdp-backend-y2aq.onrender.com'; 
 
 async function request(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  // 주소 끝의 / 와 경로 시작의 / 가 중복되지 않도록 정규화
+  const cleanBase = BASE_URL.replace(/\/+$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${cleanBase}${cleanPath}`;
+
+  const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   });
+  
+  if (res.status === 404) {
+    // 혹시 /api 가 중복되었거나 빠졌을 경우를 대비해 한 번 더 확인 안내
+    throw new Error(`주소를 찾을 수 없습니다(404). 호출 주소: ${url}`);
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || data.error || '서버 오류');
   return data;

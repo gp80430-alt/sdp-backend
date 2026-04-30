@@ -11,9 +11,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { haversine, formatDistance } from '../utils/haversine';
 import { useAuth } from '../context/AuthContext';
 import { Linking } from 'react-native';
+import { getTreasures, BASE_URL } from '../services/api';
 
 const { width: W, height: H } = Dimensions.get('window');
-const CLAIM_RADIUS = 10; // 서버와 동일한 인정 반경(m)
+const CLAIM_RADIUS = 100; // 테스트를 위해 100m로 상향 (확실한 노출 확인용)
 
 interface Treasure {
   id: string; name: string; lat: number; lng: number;
@@ -142,8 +143,13 @@ export default function ARScreen({ navigation }: any) {
   const fetchTreasures = async () => {
     try {
       const res = await getTreasures();
+      if (res.treasures) {
+        Alert.alert("알림", `서버에서 보물 ${res.treasures.length}개를 성공적으로 불러왔습니다!`);
+      }
       setTreasures(res.treasures || []);
-    } catch { /* 오프라인 시 무시 */ }
+    } catch (err: any) {
+      Alert.alert("연결 오류", `서버 데이터를 가져오지 못했습니다: ${err.message}`);
+    }
   };
 
   // ── GPS 1초마다 추적 ──────────────────────────────────────────
