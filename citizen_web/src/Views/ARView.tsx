@@ -71,12 +71,11 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
 
     setDistance(minDist);
     
-    // 포켓몬 고 스타일: 8m 이내로 들어와야 발견 가능
-    if (minDist <= 8) {
+    // 포켓몬 고 스타일: 3m 이내로 들어와야만 "발견" 가능 (더욱 엄격하게)
+    if (minDist <= 3) {
       if (!nearTreasure) {
         appearAudio.current.play().catch(() => {});
-        // 발견 시 약한 진동 (지원되는 경우)
-        if (navigator.vibrate) navigator.vibrate(200);
+        if (navigator.vibrate) navigator.vibrate(300);
       }
       setNearTreasure(closest);
     } else {
@@ -218,12 +217,17 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
                 animate={{ opacity: 1 }}
                 style={{ textAlign: 'center' }}
               >
-                <div className="pulse-primary" style={{ background: 'rgba(255,217,61,0.2)', padding: '40px', borderRadius: '50%', marginBottom: '30px', border: '2px border var(--primary)' }}>
+                <div className="pulse-primary" style={{ background: 'rgba(255,217,61,0.1)', padding: '40px', borderRadius: '50%', marginBottom: '30px', border: '2px dashed var(--primary)' }}>
                   <Radar size={60} color="var(--primary)" />
                 </div>
-                <p style={{ fontSize: '22px', fontWeight: 800, color: 'white' }}>근처에 보물이 있습니다!</p>
-                <p style={{ color: 'rgba(255,255,255,0.7)', marginTop: '10px' }}>
-                  {distance ? `앞으로 ${Math.round(distance)}m 더 가보세요` : '탐색 중...'}
+                <h3 style={{ fontSize: '20px', fontWeight: 800, color: 'white', marginBottom: '10px' }}>
+                  {distance && distance < 15 ? '오! 아주 가까워요! 🔥' : '주변을 탐색하세요 🔍'}
+                </h3>
+                <p style={{ fontSize: '28px', fontWeight: 900, color: 'var(--primary)' }}>
+                  {distance ? `${Math.round(distance)}m` : '---'}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: '10px', fontSize: '14px' }}>
+                  보물상자가 나타날 때까지 이동하세요
                 </p>
               </motion.div>
             )}
