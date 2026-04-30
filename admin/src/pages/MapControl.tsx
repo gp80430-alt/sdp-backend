@@ -190,6 +190,19 @@ export default function MapControl() {
     });
   }, [apiKey]);
 
+  // ── 마커 상태와 실제 지도 마커 동기화 ────────────────────────────────
+  useEffect(() => {
+    markers.forEach(m => {
+      const ref = markersRef.current.find(r => r.id === m.id);
+      if (ref && ref.gMarker) {
+        const pos = ref.gMarker.getPosition();
+        if (pos && (pos.lat() !== m.lat || pos.lng() !== m.lng)) {
+          ref.gMarker.setPosition({ lat: m.lat, lng: m.lng });
+        }
+      }
+    });
+  }, [markers]);
+
   // ── 마커 추가 ────────────────────────────────────────────────
   const addMarkerAt = useCallback((lat: number, lng: number) => {
     setMarkers(prev => {
@@ -575,23 +588,50 @@ function MarkerEditModal({ marker, onSave, onClose, onDelete }: {
 }) {
   const [name,   setName]   = useState(marker.name);
   const [reward, setReward] = useState(marker.coinReward);
+  const [lat,    setLat]    = useState(marker.lat);
+  const [lng,    setLng]    = useState(marker.lng);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-title">📍 보물 스팟 편집</div>
+        
         <div style={{ marginBottom: 12 }}>
           <label className="form-label">스팟 이름</label>
           <input className="form-input" value={name} onChange={e => setName(e.target.value)} />
         </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label className="form-label">위치 정보 (위도, 경도)</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input 
+              className="form-input" 
+              type="number" 
+              step="0.000001" 
+              value={lat} 
+              onChange={e => setLat(parseFloat(e.target.value))} 
+              style={{ flex: 1 }}
+            />
+            <input 
+              className="form-input" 
+              type="number" 
+              step="0.000001" 
+              value={lng} 
+              onChange={e => setLng(parseFloat(e.target.value))} 
+              style={{ flex: 1 }}
+            />
+          </div>
+        </div>
+
         <div style={{ marginBottom: 20 }}>
           <label className="form-label">코인 보상 (SDP)</label>
           <input className="form-input" type="number" min={1} max={10} value={reward}
             onChange={e => setReward(Number(e.target.value))} />
         </div>
+
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" style={{ flex: 1 }}
-            onClick={() => onSave({ ...marker, name, coinReward: reward })}>저장</button>
+            onClick={() => onSave({ ...marker, name, coinReward: reward, lat, lng })}>저장</button>
           <button className="btn btn-danger" onClick={onDelete}>삭제</button>
           <button className="btn btn-ghost" onClick={onClose}>취소</button>
         </div>
