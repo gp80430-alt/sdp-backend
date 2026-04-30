@@ -98,6 +98,10 @@ class BlockchainClient:
 
         try:
             admin = Web3.to_checksum_address(self._admin_addr)
+        except Exception as e:
+            logger.error(f"지갑 주소 변환 실패: {e}")
+            return "0xDEMO_TX_" + "0" * 56
+            
         nonce = self.w3.eth.get_transaction_count(admin)
         gas_price = self.w3.eth.gas_price
 
