@@ -32,7 +32,7 @@ export const kakaoLogin = (kakaoId: string, name: string, phone?: string) =>
 // 내 정보 조회
 export async function getMe(userId: string) {
   const res = await fetch(`${BASE_URL}/api/auth/me/${userId}`);
-  return res.json();
+  return await res.json();
 }
 
 export async function updateUser(userId: string, data: { name?: string; phone?: string }) {
@@ -41,7 +41,7 @@ export async function updateUser(userId: string, data: { name?: string; phone?: 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return await res.json();
 }
 export const getTreasures = () =>
   request('/api/treasures');
