@@ -240,13 +240,13 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
                   <Radar size={60} color="var(--primary)" />
                 </div>
                 <h3 style={{ fontSize: '20px', fontWeight: 800, color: 'white', marginBottom: '10px' }}>
-                  {distance && distance < 15 ? '오! 아주 가까워요! 🔥' : '주변을 탐색하세요 🔍'}
+                  {distance && distance < 15 ? '오! 아주 가까워요! 🔥' : (distance && distance < 30 ? '보물 신호를 잡았습니다! 📡' : '주변을 탐색하세요 🔍')}
                 </h3>
                 <p style={{ fontSize: '28px', fontWeight: 900, color: 'var(--primary)' }}>
-                  {distance ? `${Math.round(distance)}m` : '---'}
+                  {distance && distance < 30 ? `${Math.round(distance)}m` : '---'}
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: '10px', fontSize: '14px' }}>
-                  보물상자가 나타날 때까지 이동하세요
+                  {distance && distance < 30 ? '보물상자가 나타날 때까지 이동하세요' : '동네 곳곳을 걸어보세요'}
                 </p>
               </motion.div>
             )}
@@ -255,7 +255,7 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
       </div>
       
       {/* 하단 거리 네비게이터 */}
-      {!success && (
+      {!success && distance && distance < 30 && (
         <div style={{ 
           position: 'absolute', bottom: '40px', left: '20px', right: '20px', 
           background: 'rgba(0,0,0,0.7)', padding: '20px', borderRadius: '25px',
@@ -269,12 +269,12 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                 <span style={{ fontSize: '14px', fontWeight: 700, color: 'white' }}>보물 탐지기</span>
                 <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--primary)' }}>
-                  {distance ? `${Math.round(distance)}m` : '--'}
+                  {Math.round(distance)}m
                 </span>
               </div>
               <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                 <motion.div 
-                  animate={{ width: distance ? `${Math.max(5, Math.min(100, 100 - (distance/50) * 100))}%` : '5%' }}
+                  animate={{ width: `${Math.max(5, Math.min(100, 100 - (distance/30) * 100))}%` }}
                   style={{ height: '100%', background: 'var(--primary)', boxShadow: '0 0 10px var(--primary)' }} 
                 />
               </div>
