@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
-import { ArrowLeft, Navigation, Target } from 'lucide-react';
+import { ArrowLeft, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // 하버사인 거리 계산
@@ -52,7 +52,7 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
   useEffect(() => {
     if (!myPos || treasures.length === 0) return;
     
-    let closest = null;
+    let closest: any = null;
     let minD = Infinity;
 
     treasures.forEach(t => {

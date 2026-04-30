@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LoginView } from './Views/LoginView';
 import { HomeView } from './Views/HomeView';

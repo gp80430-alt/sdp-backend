@@ -1,6 +1,5 @@
-import React from 'react';
 import { useAuth } from '../AuthContext';
-import { Compass, Gift, History, LogOut, ChevronRight } from 'lucide-react';
+import { Compass, Gift, LogOut, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const MERCHANTS = [
