@@ -19,8 +19,13 @@ export const HomeView = ({ onNavigate }: { onNavigate: (view: string) => void })
           <p style={{ color: 'var(--secondary)', fontSize: '13px', fontWeight: 800 }}>{user?.title || '성동 입문자'} ✨</p>
           <h2 style={{ fontSize: '24px' }}>{user?.name} 님</h2>
         </div>
-        <button onClick={logout} style={{ background: 'var(--glass)', border: 'none', padding: '10px', borderRadius: '12px', color: 'var(--text-dim)' }}>
-          <LogOut size={20} />
+        <button 
+          onClick={logout} 
+          className="btn-ghost"
+          style={{ padding: '8px 12px', color: '#ff6b6b', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}
+        >
+          <LogOut size={18} />
+          <span>로그아웃</span>
         </button>
       </div>
 
