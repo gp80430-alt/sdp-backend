@@ -90,6 +90,10 @@ export const HomeView = ({ onNavigate }: { onNavigate: (view: string) => void })
             <ChevronRight size={18} color="var(--text-dim)" />
           </div>
         ))}
+        {/* 버전 표시 */}
+        <div style={{ textAlign: 'center', marginTop: '30px', opacity: 0.3, fontSize: '12px' }}>
+          SDP v2.1.0 (PROXIMITY_FIX_APPLIED)
+        </div>
       </div>
     </div>
   );
