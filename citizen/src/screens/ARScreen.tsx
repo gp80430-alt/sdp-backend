@@ -176,6 +176,9 @@ export default function ARScreen({ navigation }: any) {
     let closestDist = Infinity;
 
     for (const t of treasures) {
+      // 데이터 유효성 검사 (좌표 누락 방지)
+      if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
+
       const d = haversine(pos.lat, pos.lng, t.lat, t.lng);
       dists[t.id] = d;
       if (d < closestDist) { closestDist = d; closest = t; }
