@@ -52,6 +52,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    return {
+        "status": "running", 
+        "message": "성동 패스(SDP) API 서버가 정상적으로 작동 중입니다.", 
+        "docs": "/docs",
+        "version": "1.0.0"
+    }
+
 
 # ── WebSocket 관리자 (실시간 알림) ──────────────────────────────────
 class ConnectionManager:
