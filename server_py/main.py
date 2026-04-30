@@ -594,6 +594,21 @@ async def set_event(req: SetEventRequest, db: AsyncSession = Depends(get_db)):
         "spot_count":   len(req.treasure_spots),
     }
 
+@app.get("/api/admin/active-event")
+async def get_active_event(db: AsyncSession = Depends(get_db)):
+    """현재 활성화된 행사 구역 및 보물 정보 조회"""
+    result = await db.execute(select(EventZone).where(EventZone.is_active == True).order_by(EventZone.created_at.desc()))
+    zone = result.scalars().first()
+    if not zone:
+        return {"success": False, "message": "활성 구역 없음"}
+    
+    return {
+        "success": True,
+        "name": zone.name,
+        "polygon_coords": zone.polygon_coords,
+        "treasure_spots": zone.treasure_spots
+    }
+
 
 @app.post("/api/admin/mint", dependencies=[Depends(require_admin)])
 async def admin_mint(req: MintRequest, db: AsyncSession = Depends(get_db)):

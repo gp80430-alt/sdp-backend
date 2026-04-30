@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { setEvent, getTreasures } from '../services/api';
+import { setEvent, getTreasures, getActiveEvent } from '../services/api';
 
 // ── 응봉산 팔각정 좌표 (기본 중심) ───────────────────────────────
 const CENTER = { lat: 37.550473, lng: 127.024915 };
@@ -114,32 +114,6 @@ export default function MapControl() {
           const initialMarkers = res.treasures.map((t: any) => ({
             id: t.id,
             lat: t.lat,
-            lng: t.lng,
-            name: t.name,
-            coinReward: t.coinReward || 1
-          }));
-          
-          // 상태 업데이트
-          setMarkers(initialMarkers);
-          
-          // 맵에 마커 표시
-          initialMarkers.forEach((m: any, i: number) => {
-            const gMarker = new window.google.maps.Marker({
-              position: { lat: m.lat, lng: m.lng },
-              map: map,
-              draggable: true,
-              title: m.name,
-              label: {
-                text: `${i + 1}`,
-                color: '#fff', fontWeight: 'bold', fontSize: '12px'
-              },
-              icon: {
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 16,
-                fillColor: '#7C3AED',
-                fillOpacity: 1,
-                strokeColor: '#fff',
-                strokeWeight: 2,
               },
             });
 

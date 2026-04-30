@@ -23,4 +23,5 @@ export const setEvent        = (payload: object) =>
   req('/api/admin/set-event', { method: 'POST', body: JSON.stringify(payload) });
 export const pauseContract   = (action: 'pause' | 'unpause') =>
   req('/api/admin/pause', { method: 'POST', body: JSON.stringify({ action }) });
+export const getActiveEvent   = ()              => req('/api/admin/active-event');
 export const clearTransactions = () => req('/api/admin/clear-transactions', { method: 'POST' });
