@@ -75,25 +75,29 @@ class BlockchainClient:
         self._demo_mode = not (self._admin_key and contract_addr)
 
         if not self._demo_mode:
-            abi = _load_abi()
-            self.contract = self.w3.eth.contract(
-                address=Web3.to_checksum_address(contract_addr),
-                abi=abi
-            )
-            print(f"✅ 블록체인 연결 성공: {rpc} | 컨트랙트: {contract_addr}")
-            logger.info(f"✅ 블록체인 연결: {rpc} | 컨트랙트: {contract_addr[:10]}…")
-        else:
+            try:
+                abi = _load_abi()
+                self.contract = self.w3.eth.contract(
+                    address=Web3.to_checksum_address(contract_addr),
+                    abi=abi
+                )
+                print(f"✅ 블록체인 연결 성공: {rpc} | 컨트랙트: {contract_addr}")
+                logger.info(f"✅ 블록체인 연결: {rpc} | 컨트랙트: {contract_addr[:10]}…")
+            except Exception as e:
+                print(f"⚠️  컨트랙트 연결 실패: {e}. DEMO MODE로 전환합니다.")
+                self._demo_mode = True
+        
+        if self._demo_mode:
             print("⚠️  DEMO MODE 활성화됨 (환경변수 설정 확인 필요)")
             logger.warning("⚠️  DEMO MODE: 블록체인 연결 없음 (환경변수 미설정). 실제 TX는 전송되지 않습니다.")
 
     # ── 내부: 트랜잭션 서명 & 전송 ───────────────────────────────
     def _send_tx(self, fn) -> str:
-        if self._demo_mode:
+        if self._demo_mode or not self._admin_addr or not self._admin_key:
             return "0xDEMO_TX_" + "0" * 56
 
-        if not self._admin_addr:
-            raise RuntimeError("ADMIN_WALLET 환경변수가 설정되지 않았습니다.")
-        admin = Web3.to_checksum_address(self._admin_addr)
+        try:
+            admin = Web3.to_checksum_address(self._admin_addr)
         nonce = self.w3.eth.get_transaction_count(admin)
         gas_price = self.w3.eth.gas_price
 
