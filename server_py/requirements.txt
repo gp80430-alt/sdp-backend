@@ -8,3 +8,4 @@ web3
 eth-account
 cryptography
 pydantic
+haversine
