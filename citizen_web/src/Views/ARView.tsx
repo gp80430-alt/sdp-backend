@@ -1,75 +1,93 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
-import { ArrowLeft, Target } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// 하버사인 거리 계산
-const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-          Math.cos(φ1) * Math.cos(φ2) *
-          Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
+// 효과음 URL
+const APPEAR_SFX = 'https://assets.mixkit.co/sfx/preview/mixkit-magical-appearance-611.mp3';
+const SUCCESS_SFX = 'https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3';
 
 export const ARView = ({ onBack }: { onBack: () => void }) => {
   const { user, refresh } = useAuth();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
   const [treasures, setTreasures] = useState<any[]>([]);
-  const [myPos, setMyPos] = useState<{ lat: number, lng: number } | null>(null);
-  const [nearTreasure, setNearTreasure] = useState<any | null>(null);
+  const [nearTreasure, setNearTreasure] = useState<any>(null);
   const [claiming, setClaiming] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [distance, setDistance] = useState<number | null>(null);
+  const [isShaking, setIsShaking] = useState(false);
 
-  // 카메라 시작
+  // 오디오 객체 관리
+  const appearAudio = useRef(new Audio(APPEAR_SFX));
+  const successAudio = useRef(new Audio(SUCCESS_SFX));
+
   useEffect(() => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then(stream => {
-          if (videoRef.current) videoRef.current.srcObject = stream;
-        });
-    }
-    
-    // 위치 추적
+    // 1. 보물 목록 로드
+    api.getTreasures().then(res => setTreasures(res.treasures || []));
+
+    // 2. 위치 추적
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        const current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setMyPos(current);
+      },
       (err) => console.error(err),
       { enableHighAccuracy: true }
     );
 
-    // 보물 로드
-    api.getTreasures().then(res => setTreasures(res.treasures || []));
-
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  // 근처 보물 체크
   useEffect(() => {
     if (!myPos || treasures.length === 0) return;
-    
-    let closest: any = null;
-    let minD = Infinity;
+
+    // 가장 가까운 보물 찾기
+    let closest = null;
+    let minDist = Infinity;
 
     treasures.forEach(t => {
-      const d = getDistance(myPos.lat, myPos.lng, t.lat, t.lng);
-      if (d < minD) { minD = d; closest = { ...t, dist: d }; }
+      const d = haversine(myPos.lat, myPos.lng, t.lat, t.lng);
+      if (d < minDist) {
+        minDist = d;
+        closest = t;
+      }
     });
 
-    if (closest && closest.dist < 100) { // 100m 이내 감지
+    setDistance(minDist);
+    
+    // 15m 이내일 때만 상자 표시
+    if (minDist <= 15) {
+      if (!nearTreasure) appearAudio.current.play().catch(() => {});
       setNearTreasure(closest);
     } else {
       setNearTreasure(null);
     }
   }, [myPos, treasures]);
 
+  const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
   const handleClaim = async () => {
-    if (!nearTreasure || !user || claiming) return;
+    if (!user || !nearTreasure || claiming) return;
+    
+    // 1. 흔들림 효과 시작
+    setIsShaking(true);
     setClaiming(true);
+    
+    // 연출을 위해 약간의 딜레이
+    await new Promise(r => setTimeout(r, 800));
+
     try {
       await api.claimCoin({
         userId: user.id,
@@ -78,76 +96,123 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
         lng: myPos?.lng,
         deviceId: 'web_client'
       });
-      alert('🎁 코인을 획득했습니다!');
+      
+      // 2. 성공 연출
+      successAudio.current.play().catch(() => {});
+      setSuccess(true);
+      
+      // 3. 잔액 갱신 (핵심!)
       await refresh();
-      setNearTreasure(null);
+      
+      setTimeout(() => onBack(), 2500);
     } catch (err: any) {
       alert(err.message);
-    } finally {
+      setIsShaking(false);
       setClaiming(false);
     }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: '#000' }}>
-      {/* 카메라 배경 */}
-      <video 
-        ref={videoRef} 
-        autoPlay 
-        playsInline 
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-      />
+    <div style={{ height: '100vh', background: '#000', position: 'relative', overflow: 'hidden' }}>
+      {/* 카메라 배경 시뮬레이션 (실제로는 비디오 스트림 가능) */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, #1a1c2c, #4a192c)', opacity: 0.8 }}>
+        <video id="ar-video" autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
 
-      {/* 오버레이 UI */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        <SafeArea top style={{ padding: '20px' }}>
-          <button 
-            onClick={onBack}
-            className="glass"
-            style={{ pointerEvents: 'auto', padding: '10px 20px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}
-          >
-            <ArrowLeft size={20} /> 탐험 종료
-          </button>
-        </SafeArea>
+      <div style={{ position: 'relative', zIndex: 10, padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <button onClick={onBack} className="btn-ghost" style={{ width: 'fit-content' }}>
+          <ArrowLeft size={24} />
+        </button>
 
-        {/* 하단 정보창 */}
-        <div style={{ position: 'absolute', bottom: '30px', left: '20px', right: '20px', pointerEvents: 'auto' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <AnimatePresence>
-            {nearTreasure ? (
-              <motion.div 
-                initial={{ y: 100, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 100, opacity: 0 }}
-                className="glass" 
-                style={{ padding: '25px', textAlign: 'center', border: '2px solid var(--accent)' }}
+            {!success && nearTreasure && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ 
+                  scale: 1, 
+                  opacity: 1,
+                  x: isShaking ? [0, -10, 10, -10, 10, 0] : 0 
+                }}
+                transition={{ 
+                  scale: { type: 'spring', damping: 12 },
+                  x: { duration: 0.4, repeat: isShaking ? Infinity : 0 }
+                }}
+                exit={{ scale: 0, opacity: 0 }}
+                onClick={handleClaim}
+                style={{ textAlign: 'center', cursor: 'pointer' }}
               >
-                <div style={{ fontSize: '50px', marginBottom: '10px' }}>🪙</div>
-                <h3 style={{ fontSize: '20px', marginBottom: '5px' }}>{nearTreasure.name} 발견!</h3>
-                <p style={{ color: 'var(--accent)', fontWeight: 800, marginBottom: '20px' }}>약 {Math.round(nearTreasure.dist)}m 거리에 보물이 있습니다</p>
-                <button onClick={handleClaim} className="btn-primary pulse-primary" disabled={claiming}>
-                  {claiming ? '획득 중...' : '코인 획득하기'}
-                </button>
+                <div style={{ fontSize: '120px', filter: 'drop-shadow(0 0 20px rgba(255,217,61,0.5))' }}>
+                  🎁
+                </div>
+                <motion.div 
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  style={{ 
+                    background: 'rgba(0,0,0,0.6)', 
+                    padding: '8px 20px', 
+                    borderRadius: '20px',
+                    border: '1px solid var(--primary)',
+                    marginTop: '20px'
+                  }}
+                >
+                  <p style={{ fontWeight: 800, color: 'var(--primary)' }}>보물상자를 터치하세요!</p>
+                </motion.div>
               </motion.div>
-            ) : (
-              <div className="glass" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <div className="animate-float" style={{ color: 'var(--primary)' }}>
-                  <Target size={32} />
+            )}
+
+            {success && (
+              <motion.div
+                initial={{ scale: 0, y: 50 }}
+                animate={{ scale: 1, y: 0 }}
+                style={{ textAlign: 'center' }}
+              >
+                <CheckCircle size={100} color="#7fe9de" style={{ marginBottom: '20px' }} />
+                <h2 style={{ fontSize: '32px', fontWeight: 800 }}>획득 성공!</h2>
+                <p style={{ color: 'var(--text-dim)', marginTop: '10px' }}>{nearTreasure.coinReward} SDP가 지갑으로 전송되었습니다.</p>
+              </motion.div>
+            )}
+
+            {!nearTreasure && !success && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={{ textAlign: 'center' }}
+              >
+                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '30px', borderRadius: '50%', marginBottom: '20px' }}>
+                  <Smartphone size={48} color="var(--primary)" />
                 </div>
-                <div>
-                  <h4 style={{ fontSize: '16px' }}>주변을 탐색 중입니다</h4>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>보물 근처 100m 이내로 이동해 주세요</p>
-                </div>
-              </div>
+                <p style={{ fontSize: '18px', fontWeight: 600 }}>주변을 탐색 중입니다...</p>
+                {distance && (
+                  <p style={{ color: 'var(--text-dim)', marginTop: '10px' }}>
+                    가장 가까운 보물까지 약 {Math.round(distance)}m
+                  </p>
+                )}
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
+      
+      {/* 하단 거리 인디케이터 */}
+      {!success && (
+        <div style={{ 
+          position: 'absolute', bottom: '40px', left: '20px', right: '20px', 
+          background: 'rgba(0,0,0,0.5)', padding: '15px', borderRadius: '20px',
+          backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px' }}>
+            <span>탐색 범위</span>
+            <span>{distance ? `${Math.round(distance)}m` : '--'}</span>
+          </div>
+          <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+            <motion.div 
+              animate={{ width: distance ? `${Math.max(0, 100 - (distance/100) * 100)}%` : '0%' }}
+              style={{ height: '100%', background: 'var(--primary)' }} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-const SafeArea = ({ children, top, style }: any) => (
-  <div style={{ paddingTop: top ? 'env(safe-area-inset-top)' : 0, ...style }}>
-    {children}
-  </div>
-);
