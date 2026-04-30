@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { haversine, formatDistance } from '../utils/haversine';
 import { useAuth } from '../context/AuthContext';
 import { Linking } from 'react-native';
-import { getTreasures, BASE_URL } from '../services/api';
+import { getTreasures, claimCoin, BASE_URL } from '../services/api';
 
 const { width: W, height: H } = Dimensions.get('window');
 const CLAIM_RADIUS = 100; // 테스트를 위해 100m로 상향 (확실한 노출 확인용)
