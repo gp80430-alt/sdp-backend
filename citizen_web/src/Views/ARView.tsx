@@ -19,11 +19,16 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
   const [distance, setDistance] = useState<number | null>(null);
   const [shakeCount, setShakeCount] = useState(0);
 
+  const [isReady, setIsReady] = useState(false);
+
   const appearAudio = useRef(new Audio(APPEAR_SFX));
   const successAudio = useRef(new Audio(SUCCESS_SFX));
   const shakeAudio = useRef(new Audio(SHAKE_SFX));
 
   useEffect(() => {
+    // 초기 로딩 지연 (위치 안정화 대기)
+    setTimeout(() => setIsReady(true), 2000);
+    
     api.getTreasures().then(res => setTreasures(res.treasures || []));
 
     const watchId = navigator.geolocation.watchPosition(
@@ -81,8 +86,8 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
 
     setDistance(minDist);
     
-    // 포켓몬 고 스타일: 3m 이내로 들어와야만 "발견" 가능 (더욱 엄격하게)
-    if (minDist <= 3) {
+    // 포켓몬 고 스타일: 3m 이내로 들어와야만 "발견" 가능
+    if (isReady && minDist <= 3) {
       if (!nearTreasure) {
         appearAudio.current.play().catch(() => {});
         if (navigator.vibrate) navigator.vibrate(300);
