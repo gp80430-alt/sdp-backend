@@ -37,9 +37,19 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
     // 카메라 권한 요청 및 비디오 시작
     const startCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
         const video = document.getElementById('ar-video') as HTMLVideoElement;
-        if (video) video.srcObject = stream;
+        if (video) {
+          video.srcObject = stream;
+          video.setAttribute('playsinline', 'true');
+          await video.play();
+        }
       } catch (err) {
         console.error("Camera access denied:", err);
       }
@@ -116,8 +126,12 @@ export const ARView = ({ onBack }: { onBack: () => void }) => {
       
       successAudio.current.play().catch(() => {});
       setSuccess(true);
+      // 3. 잔액 및 내역 갱신 (반드시 두 번 확인하여 반영 보장)
       await refresh();
-      setTimeout(() => onBack(), 3000);
+      setTimeout(async () => {
+        await refresh();
+        onBack();
+      }, 1500);
     } catch (err: any) {
       alert(err.message);
       setClaiming(false);
