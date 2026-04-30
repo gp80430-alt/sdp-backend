@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { setEvent } from '../services/api';
+import { setEvent, getTreasures } from '../services/api';
 
 // ── 응봉산 팔각정 좌표 (기본 중심) ───────────────────────────────
 const CENTER = { lat: 37.550473, lng: 127.024915 };
