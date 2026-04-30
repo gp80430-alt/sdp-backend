@@ -150,6 +150,8 @@ class BlockchainClient:
         if self._demo_mode:
             return self._send_tx(None)
 
+        if not user_addr:
+            raise ValueError("사용자 지갑 주소가 없습니다.")
         fn = self.contract.functions.burnFrom(
             Web3.to_checksum_address(user_addr),
             amount_sdp * 10 ** 18
@@ -159,6 +161,8 @@ class BlockchainClient:
     def get_balance(self, addr: str) -> int:
         """온체인 잔액 조회 (SDP 정수 반환)"""
         if self._demo_mode:
+            return 0
+        if not addr:
             return 0
         raw = self.contract.functions.balanceOf(
             Web3.to_checksum_address(addr)
