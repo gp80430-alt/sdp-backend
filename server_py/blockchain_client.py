@@ -91,6 +91,8 @@ class BlockchainClient:
         if self._demo_mode:
             return "0xDEMO_TX_" + "0" * 56
 
+        if not self._admin_addr:
+            raise RuntimeError("ADMIN_WALLET 환경변수가 설정되지 않았습니다.")
         admin = Web3.to_checksum_address(self._admin_addr)
         nonce = self.w3.eth.get_transaction_count(admin)
         gas_price = self.w3.eth.gas_price
@@ -120,6 +122,8 @@ class BlockchainClient:
         if self._demo_mode:
             return self._send_tx(None)
 
+        if not to_addr:
+            raise ValueError("수신자 지갑 주소가 없습니다.")
         fn = self.contract.functions.mint(
             Web3.to_checksum_address(to_addr),
             amount_sdp * 10 ** 18,
@@ -132,6 +136,8 @@ class BlockchainClient:
         if self._demo_mode:
             return self._send_tx(None)
 
+        if not user_addr:
+            raise ValueError("사용자 지갑 주소가 없습니다.")
         fn = self.contract.functions.claimSpot(
             Web3.to_checksum_address(user_addr),
             spot_id,
