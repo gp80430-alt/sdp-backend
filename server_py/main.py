@@ -102,27 +102,8 @@ REQUEST_COUNTS = {}
 async def startup():
     await init_db()
     
-    # 시드 보물 장소 삽입
-    from database import engine
-    seed_spots = [
-        {"id": "T001", "name": "응봉산 팔각정",   "lat": 37.550473, "lng": 127.024915, "coin_reward": 3, "icon": "🏯"},
-        {"id": "T002", "name": "서울숲 솔밭 광장", "lat": 37.544122, "lng": 127.037418, "coin_reward": 2, "icon": "🌲"},
-        {"id": "T003", "name": "성동구청 광장",    "lat": 37.563597, "lng": 127.036813, "coin_reward": 1, "icon": "🏛️"},
-        {"id": "T004", "name": "왕십리 광장",     "lat": 37.561446, "lng": 127.038580, "coin_reward": 2, "icon": "🚉"},
-        {"id": "T005", "name": "뚝섬한강공원",    "lat": 37.530797, "lng": 127.066207, "coin_reward": 3, "icon": "🌊"},
-        {"id": "T006", "name": "성수 카페거리",   "lat": 37.544600, "lng": 127.056300, "coin_reward": 5, "icon": "☕"},
-        {"id": "T007", "name": "금호동 벽화마을",  "lat": 37.554500, "lng": 127.019200, "coin_reward": 2, "icon": "🎨"},
-        {"id": "T008", "name": "마장체육센터",    "lat": 37.567123, "lng": 127.045456, "coin_reward": 2, "icon": "🏊"},
-        {"id": "T009", "name": "성수 구두공원",    "lat": 37.542345, "lng": 127.054321, "coin_reward": 3, "icon": "👞"},
-        {"id": "T010", "name": "사근동 한양대",    "lat": 37.558789, "lng": 127.048123, "coin_reward": 2, "icon": "🎓"},
-    ]
-    async with AsyncSession(engine) as session:
-        for s in seed_spots:
-            existing = await session.get(TreasureSpot, s["id"])
-            if not existing:
-                session.add(TreasureSpot(**s, description="", radius_m=10, daily_limit=100))
-        await session.commit()
-    logger.info("✅ DB 초기화 완료")
+    # 자동 시드 생성 로직 삭제 (사용자 설정 데이터 보호)
+    logger.info("✅ DB 초기화 완료 (사용자 데이터 모드)")
 
 
 # ── 관리자 인증 의존성 ────────────────────────────────────────────
