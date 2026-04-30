@@ -109,29 +109,42 @@ export default function MapControl() {
 
       // ── 기존 데이터 로드 ──
       try {
-        const res = await getTreasures();
-        if (res.treasures && res.treasures.length > 0) {
-          const initialMarkers = res.treasures.map((t: any) => ({
-            id: t.id,
-            lat: t.lat,
-              },
+        const eventData = await getActiveEvent();
+        if (eventData.success) {
+          // 1. 다각형 복원
+          if (eventData.polygon_coords && eventData.polygon_coords.length > 0) {
+            setPolygonCoords(eventData.polygon_coords);
+            const poly = new window.google.maps.Polygon({
+              paths: eventData.polygon_coords,
+              fillColor: '#7C3AED',
+              fillOpacity: 0.25,
+              strokeColor: '#7C3AED',
+              strokeWeight: 2,
+              editable: true,
+              draggable: true,
             });
+            poly.setMap(map);
+            polygonRef.current = poly;
+          }
 
-            gMarker.addListener('dragend', (e: any) => {
-              const newLat = e.latLng.lat();
-              const newLng = e.latLng.lng();
-              setMarkers(ms => ms.map(mm => mm.id === m.id ? { ...mm, lat: newLat, lng: newLng } : mm));
+          // 2. 마커 복원
+          if (eventData.treasure_spots) {
+            const ms = eventData.treasure_spots.map((s: any) => {
+              const gMarker = new window.google.maps.Marker({
+                position: { lat: s.lat, lng: s.lng },
+                map: map,
+                draggable: true,
+                title: s.name,
+                icon: 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png'
+              });
+              markersRef.current.push(gMarker);
+              return { id: s.id, lat: s.lat, lng: s.lng, name: s.name, coinReward: s.coinReward };
             });
-
-            gMarker.addListener('click', () => {
-              setEditMarker(m);
-            });
-
-            markersRef.current.push({ id: m.id, gMarker });
-          });
+            setMarkers(ms);
+          }
         }
-      } catch (e) {
-        console.error('Failed to load initial treasures:', e);
+      } catch (err) {
+        console.error("데이터 복원 실패:", err);
       }
 
       // 다각형 완료 이벤트
