@@ -4,6 +4,9 @@ import { useAuth } from '../AuthContext';
 import { ArrowLeft, CheckCircle, Smartphone, Radar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// CACHE BUSTER: FINAL_AR_EXPERIENCE_v2.0.0
+
+
 // 효과음 URL
 const APPEAR_SFX = 'https://assets.mixkit.co/sfx/preview/mixkit-magical-appearance-611.mp3';
 const SHAKE_SFX = 'https://assets.mixkit.co/sfx/preview/mixkit-box-shaking-1534.mp3';
