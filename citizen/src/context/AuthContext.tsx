@@ -44,23 +44,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
-    // 앱 시작 시 저장된 유저 복원 및 최신 정보 동기화
-    AsyncStorage.getItem('sdp_user').then(async (raw) => {
-      if (raw) {
-        const savedUser = JSON.parse(raw);
-        setUser(savedUser);
-        // 서버에서 최신 등급/잔액 정보 가져오기
-        try {
-          const meRes = await api.getMe(savedUser.id);
-          const updated = { ...savedUser, balance: meRes.balance, title: meRes.title };
-          setUser(updated);
-          await AsyncStorage.setItem('sdp_user', JSON.stringify(updated));
-        } catch (e) {
-          console.log('초기 동기화 실패:', e);
+    const initAuth = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('sdp_user');
+        if (raw) {
+          const savedUser = JSON.parse(raw);
+          setUser(savedUser);
+
+          // 서버 동기화 시도 (최대 5초만 대기)
+          const syncPromise = api.getMe(savedUser.id).then(meRes => {
+            if (meRes && meRes.id) {
+              const updated = { ...savedUser, balance: meRes.balance, title: meRes.title };
+              setUser(updated);
+              AsyncStorage.setItem('sdp_user', JSON.stringify(updated));
+            }
+          });
+
+          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 5000));
+          await Promise.race([syncPromise, timeoutPromise]);
         }
+      } catch (e) {
+        console.log('초기화 중 오류 발생 (무시하고 진행):', e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    initAuth();
   }, []);
 
   const login = async (kakaoId: string, name: string, phone?: string) => {
