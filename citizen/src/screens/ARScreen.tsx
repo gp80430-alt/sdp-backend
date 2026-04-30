@@ -138,17 +138,16 @@ export default function ARScreen({ navigation }: any) {
   useEffect(() => {
     if (!locPerm) return;
     startTracking();
+    fetchTreasures(); // 시작할 때 무조건 한 번 더 가져오기
   }, [locPerm]);
 
   const fetchTreasures = async () => {
     try {
+      console.log("📡 보물 데이터 동기화 중...");
       const res = await getTreasures();
-      if (res.treasures) {
-        Alert.alert("알림", `서버에서 보물 ${res.treasures.length}개를 성공적으로 불러왔습니다!`);
-      }
       setTreasures(res.treasures || []);
     } catch (err: any) {
-      Alert.alert("연결 오류", `서버 데이터를 가져오지 못했습니다: ${err.message}`);
+      console.error("❌ 데이터 동기화 실패:", err.message);
     }
   };
 

@@ -16,6 +16,7 @@ export function haversine(
 }
 
 export function formatDistance(meters: number): string {
+  if (meters === undefined || meters === null || isNaN(meters) || meters === Infinity) return '---';
   if (meters < 1000) return `${Math.round(meters)}m`;
   return `${(meters / 1000).toFixed(1)}km`;
 }

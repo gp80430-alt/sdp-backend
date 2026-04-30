@@ -26,21 +26,27 @@ export default function LoginScreen({ navigation }: any) {
     Animated.spring(scaleAnim, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true }).start();
   };
 
-  const handleKakaoLogin = async () => {
-    if (!name.trim()) {
-      Alert.alert('어라?', '이름을 알려주세요! 🐣');
-      return;
-    }
-    setLoading(true);
-    try {
-      const fakeKakaoId = `kakao_${Date.now()}`;
-      await login(fakeKakaoId, name.trim(), phone.trim());
-    } catch (e: any) {
-      Alert.alert('으앙!', '로그인에 실패했어요 😿');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const handleKakaoLogin = async () => {
+      if (!name.trim()) {
+        Alert.alert('어라?', '이름을 알려주세요! 🐣');
+        return;
+      }
+      setLoading(true);
+      try {
+        const fakeKakaoId = `kakao_${Date.now()}`;
+        // 가입 시도 (최대 10초 대기 설정)
+        const loginPromise = login(fakeKakaoId, name.trim(), phone.trim());
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('서버 응답 시간이 초과되었습니다. 다시 시도해 주세요.')), 15000)
+        );
+
+        await Promise.race([loginPromise, timeoutPromise]);
+      } catch (e: any) {
+        Alert.alert('로그인 알림', e.message || '로그인에 실패했어요. 서버가 준비 중일 수 있으니 잠시 후 다시 시도해 주세요. 😿');
+      } finally {
+        setLoading(false);
+      }
+    };
 
   return (
     <LinearGradient colors={['#FFF5F7', '#FFE4E8', '#E0F7FA']} style={styles.gradient}>
