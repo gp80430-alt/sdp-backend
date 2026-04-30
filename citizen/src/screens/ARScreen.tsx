@@ -134,22 +134,25 @@ export default function ARScreen({ navigation }: any) {
     return () => { locationSub.current?.remove(); };
   }, []);
 
+  const fetchTreasures = async () => {
+    try {
+      console.log("📡 보물 데이터 동기화 시도 중...");
+      const res = await getTreasures();
+      console.log("✅ 보물 데이터 로드 성공:", res.treasures?.length);
+      setTreasures(res.treasures || []);
+    } catch (err: any) {
+      console.error("❌ 보물 데이터 동기화 실패:", err.message);
+      Alert.alert("동기화 오류", "서버에서 보물 정보를 가져오지 못했습니다.");
+    }
+  };
+
   // ── 위치 권한 획득 후 GPS 추적 시작 ────────────────────────────
   useEffect(() => {
     if (!locPerm) return;
+    console.log("🚀 GPS 추적 및 데이터 로드 시작");
     startTracking();
-    fetchTreasures(); // 시작할 때 무조건 한 번 더 가져오기
+    fetchTreasures(); 
   }, [locPerm]);
-
-  const fetchTreasures = async () => {
-    try {
-      console.log("📡 보물 데이터 동기화 중...");
-      const res = await getTreasures();
-      setTreasures(res.treasures || []);
-    } catch (err: any) {
-      console.error("❌ 데이터 동기화 실패:", err.message);
-    }
-  };
 
   // ── GPS 1초마다 추적 ──────────────────────────────────────────
   const startTracking = async () => {
