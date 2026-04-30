@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "성동 패스",
+    "slug": "sdp-citizen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0E1A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "kr.seongdong.sdpass",
+      "infoPlist": {
+        "NSCameraUsageDescription": "AR 보물찾기를 위해 카메라가 필요합니다.",
+        "NSLocationWhenInUseUsageDescription": "주변 보물을 찾기 위해 위치 정보가 필요합니다.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "백그라운드에서도 보물을 추적합니다."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0E1A"
+      },
+      "package": "kr.seongdong.sdpass",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      ["expo-camera", { "cameraPermission": "AR 보물찾기를 위해 카메라 권한이 필요합니다." }],
+      ["expo-location", { "locationAlwaysAndWhenInUsePermission": "보물 위치 탐색을 위해 위치 권한이 필요합니다." }]
+    ]
+  }
+}

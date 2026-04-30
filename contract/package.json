@@ -1,0 +1,19 @@
+{
+  "name": "sdp-contract",
+  "version": "1.0.0",
+  "description": "성동 패스 ERC20 스마트 컨트랙트",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js --network sepolia",
+    "test": "hardhat test",
+    "node": "hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^4.9.6",
+    "hardhat": "^2.22.1"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  }
+}
