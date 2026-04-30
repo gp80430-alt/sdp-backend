@@ -1,4 +1,4 @@
-const BASE_URL = 'https://sdp-backend-y2aq.onrender.com';
+const BASE_URL = 'https://sdp-backend-y2aq.onrender.com'; // Triggering a fresh build with latest safety fixes
 
 async function request(path: string, options: RequestInit = {}) {
   const cleanBase = BASE_URL.replace(/\/+$/, '');
