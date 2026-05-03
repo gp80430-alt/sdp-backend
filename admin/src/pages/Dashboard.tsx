@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { getStats, getTransactions, getTreasures, adminMint, pauseContract, clearTransactions } from '../services/api';
 
 interface Stats {
@@ -23,6 +23,33 @@ interface Tx {
   tx_hash: string; created_at: string;
 }
 
+// ── 경량 토스트 훅 ────────────────────────────────────────────────
+function useToast() {
+  const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' | 'info' } | null>(null);
+  const show = useCallback((msg: string, kind: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ msg, kind });
+    setTimeout(() => setToast(null), 3500);
+  }, []);
+  return { toast, show };
+}
+
+// ── 확인 모달 ─────────────────────────────────────────────────────
+function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 20, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          {message}
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost" onClick={onCancel}>취소</button>
+          <button className="btn btn-danger" onClick={onConfirm}>확인</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [stats, setStats]           = useState<Stats | null>(null);
   const [txs,   setTxs]             = useState<Tx[]>([]);
@@ -36,36 +63,38 @@ export default function Dashboard() {
   const [mintResult,  setMintResult]  = useState('');
   const [pauseLoading, setPauseLoading] = useState(false);
   const [showTable, setShowTable] = useState(true);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmPause, setConfirmPause] = useState(false);
+  const { toast, show: showToast } = useToast();
 
-  const handleClearHistory = async () => {
-    if (!confirm('⚠️ 모든 트랜잭션 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없으며 대시보드 통계도 초기화됩니다.')) return;
-    try {
-      await clearTransactions();
-      alert('✅ 모든 기록이 삭제되었습니다.');
-      load();
-    } catch (e: any) {
-      alert(`❌ 삭제 실패: ${e.message}`);
-    }
-  };
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [s, t, tr] = await Promise.all([
-        getStats(), 
-        getTransactions(30),
+        getStats(),
+        getTransactions(50),
         getTreasures()
       ]);
       setStats(s);
       setTxs(t.transactions || []);
       setTreasures(tr.treasures || []);
     } catch {
-      // 서버 미연결 시 목업 데이터
       setStats({ total_issued: 1240, total_spent: 380, in_circulation: 860,
         today_claims: 47, active_spots: 6, total_txs: 143, is_paused: false, demo_mode: true });
     } finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { load(); const id = setInterval(load, 15000); return () => clearInterval(id); }, []);
+  useEffect(() => { load(); const id = setInterval(load, 15000); return () => clearInterval(id); }, [load]);
+
+  const handleClearHistory = async () => {
+    setConfirmClear(false);
+    try {
+      await clearTransactions();
+      showToast('✅ 모든 기록이 삭제되었습니다.', 'success');
+      load();
+    } catch (e: any) {
+      showToast(`❌ 삭제 실패: ${e.message}`, 'error');
+    }
+  };
 
   const handleMint = async () => {
     if (!mintWallet || !mintAmount) { setMintResult('❌ 지갑 주소와 수량을 입력하세요.'); return; }
@@ -79,28 +108,75 @@ export default function Dashboard() {
   };
 
   const handlePause = async () => {
+    setConfirmPause(false);
     if (!stats) return;
     const action = stats.is_paused ? 'unpause' : 'pause';
-    if (!confirm(`컨트랙트를 ${action === 'pause' ? '정지' : '재개'}하시겠습니까?`)) return;
     setPauseLoading(true);
-    try { await pauseContract(action); load(); }
-    catch (e: any) { alert(e.message); }
-    finally { setPauseLoading(false); }
+    try {
+      await pauseContract(action);
+      showToast(action === 'pause' ? '⏸ 컨트랙트가 정지되었습니다.' : '▶️ 컨트랙트가 재개되었습니다.', 'info');
+      load();
+    } catch (e: any) {
+      showToast(`❌ ${e.message}`, 'error');
+    } finally { setPauseLoading(false); }
   };
 
   if (loading) return <div style={styles.loading}><div style={styles.spinner} />데이터 로딩 중…</div>;
 
+  // 실제 비율 계산 (스탯바 너비)
+  const maxIssued = stats?.total_issued || 1;
   const statCards = [
-    { label: '총 발행 코인',     value: stats?.total_issued.toLocaleString(),   unit: 'SDP', color: '#6366F1', icon: '🪙' },
-    { label: '오늘 획득된 코인', value: stats?.today_claims.toLocaleString(),   unit: '건', color: '#10B981', icon: '📍' },
-    { label: '유통 중 코인',     value: stats?.in_circulation.toLocaleString(), unit: 'SDP', color: '#F59E0B', icon: '💫' },
-    { label: '총 사용된 코인',   value: stats?.total_spent.toLocaleString(),    unit: 'SDP', color: '#EF4444', icon: '🛍️' },
-    { label: '활성 스팟',        value: stats?.active_spots,                    unit: '개', color: '#3B82F6', icon: '🗺️' },
-    { label: '총 트랜잭션',      value: stats?.total_txs.toLocaleString(),      unit: '건', color: '#8B5CF6', icon: '🔗' },
+    { label: '총 발행 코인',     value: stats?.total_issued.toLocaleString(),   unit: 'SDP', color: '#6366F1', icon: '🪙',
+      pct: 100 },
+    { label: '오늘 획득된 코인', value: stats?.today_claims.toLocaleString(),   unit: '건', color: '#10B981', icon: '📍',
+      pct: Math.min(100, ((stats?.today_claims || 0) / Math.max(stats?.total_txs || 1, 1)) * 100 * 5) },
+    { label: '유통 중 코인',     value: stats?.in_circulation.toLocaleString(), unit: 'SDP', color: '#F59E0B', icon: '💫',
+      pct: Math.min(100, ((stats?.in_circulation || 0) / maxIssued) * 100) },
+    { label: '총 사용된 코인',   value: stats?.total_spent.toLocaleString(),    unit: 'SDP', color: '#EF4444', icon: '🛍️',
+      pct: Math.min(100, ((stats?.total_spent || 0) / maxIssued) * 100) },
+    { label: '활성 스팟',        value: stats?.active_spots,                    unit: '개', color: '#3B82F6', icon: '🗺️',
+      pct: Math.min(100, ((stats?.active_spots || 0) / 10) * 100) },
+    { label: '총 트랜잭션',      value: stats?.total_txs.toLocaleString(),      unit: '건', color: '#8B5CF6', icon: '🔗',
+      pct: Math.min(100, ((stats?.total_txs || 0) / Math.max(stats?.total_txs || 1, 200)) * 100) },
   ];
 
   return (
     <div style={styles.container}>
+      {/* ── 토스트 알림 ── */}
+      {toast && (
+        <div style={{
+          ...styles.toast,
+          borderColor: toast.kind === 'success' ? 'rgba(16,185,129,0.4)'
+                      : toast.kind === 'error'   ? 'rgba(239,68,68,0.4)'
+                      : 'rgba(99,102,241,0.4)',
+          color: toast.kind === 'success' ? 'var(--green)'
+               : toast.kind === 'error'   ? 'var(--red)'
+               : 'var(--text-primary)',
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* ── 확인 모달: 기록 삭제 ── */}
+      {confirmClear && (
+        <ConfirmModal
+          message={'⚠️ 모든 트랜잭션 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없으며 통계도 초기화됩니다.'}
+          onConfirm={handleClearHistory}
+          onCancel={() => setConfirmClear(false)}
+        />
+      )}
+
+      {/* ── 확인 모달: 정지/재개 ── */}
+      {confirmPause && (
+        <ConfirmModal
+          message={stats?.is_paused
+            ? '▶️ 컨트랙트를 재개하시겠습니까?'
+            : '⏸ 컨트랙트를 긴급 정지하시겠습니까?\n코인 이동 및 획득이 불가해집니다.'}
+          onConfirm={handlePause}
+          onCancel={() => setConfirmPause(false)}
+        />
+      )}
+
       {/* ── 상태 배너 ── */}
       {stats?.demo_mode && (
         <div style={styles.demoBanner}>
@@ -130,7 +206,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div style={{ ...styles.statBar, background: `${c.color}33` }}>
-              <div style={{ ...styles.statBarFill, background: c.color, width: '60%' }} />
+              <div style={{ ...styles.statBarFill, background: c.color, width: `${c.pct.toFixed(1)}%` }} />
             </div>
           </div>
         ))}
@@ -145,13 +221,13 @@ export default function Dashboard() {
         <button
           className={`btn ${stats?.is_paused ? 'btn-green' : 'btn-danger'}`}
           style={{ fontSize: 15, padding: '12px 24px' }}
-          onClick={handlePause} disabled={pauseLoading}
+          onClick={() => setConfirmPause(true)} disabled={pauseLoading}
         >
           {pauseLoading ? '처리 중…' : stats?.is_paused ? '▶️ 컨트랙트 재개' : '⏸ 긴급 정지'}
         </button>
       </div>
 
-      {/* ── 보물 스팟 목록 (위치값 포함) ── */}
+      {/* ── 보물 스팟 목록 ── */}
       <div className="card" style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>📍 보물 스팟 목록 및 위치값</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -177,23 +253,23 @@ export default function Dashboard() {
 
       {/* ── 최근 트랜잭션 ── */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700 }}>🔗 최근 블록체인 트랜잭션</h2>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button 
-              className="btn btn-ghost" 
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-ghost"
               style={{ fontSize: 12, border: '1px solid var(--border)' }}
-              onClick={() => window.open(`${import.meta.env.VITE_API_BASE || 'http://localhost:8000'}/api/admin/export/transactions`, '_blank')}
+              onClick={() => window.open(`${import.meta.env.VITE_API_BASE || 'https://sdp-backend-y2aq.onrender.com'}/api/admin/export/transactions`, '_blank')}
             >
-              📊 엑셀 내보내기 (CSV)
+              📊 CSV 내보내기
             </button>
             <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTable(!showTable)}>
-              {showTable ? '👁️ 목록 숨기기' : '👁️ 목록 표시'}
+              {showTable ? '👁️ 숨기기' : '👁️ 표시'}
             </button>
-            <button className="btn btn-ghost" style={{ fontSize: 12, color: '#FCA5A5' }} onClick={handleClearHistory}>
+            <button className="btn btn-ghost" style={{ fontSize: 12, color: '#FCA5A5' }} onClick={() => setConfirmClear(true)}>
               🗑️ 기록 삭제
             </button>
-            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={load}>새로고침</button>
+            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={load}>↻ 새로고침</button>
           </div>
         </div>
 
@@ -292,7 +368,7 @@ const styles: Record<string, React.CSSProperties> = {
   statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 },
   statCard:   { transition: 'transform 0.2s', cursor: 'default' },
   iconCircle: { width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  statBar:    { height: 3, borderRadius: 2, marginTop: 12, overflow: 'hidden' },
+  statBar:    { height: 4, borderRadius: 2, marginTop: 12, overflow: 'hidden' },
   statBarFill:{ height: '100%', borderRadius: 2, transition: 'width 1s ease' },
   actionRow:  { display: 'flex', gap: 12, flexWrap: 'wrap' },
   table:      { width: '100%', borderCollapse: 'collapse', fontSize: 12 },
@@ -302,11 +378,16 @@ const styles: Record<string, React.CSSProperties> = {
   td:         { padding: '10px 12px', color: 'var(--text-secondary)' },
   spotCard: {
     background: 'rgba(255,255,255,0.03)',
-    borderRadius: 12,
-    padding: 16,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    border: '1px solid var(--border)'
-  }
+    borderRadius: 12, padding: 16,
+    display: 'flex', alignItems: 'center', gap: 12,
+    border: '1px solid var(--border)',
+  },
+  toast: {
+    position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+    background: 'var(--bg-card)', border: '1px solid',
+    borderRadius: 12, padding: '12px 20px', fontSize: 13, fontWeight: 600,
+    zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+    animation: 'slideUp 0.2s ease', whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+  },
 };

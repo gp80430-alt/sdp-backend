@@ -12,6 +12,11 @@ import { haversine, formatDistance } from '../utils/haversine';
 import { useAuth } from '../context/AuthContext';
 import { Linking } from 'react-native';
 import { getTreasures, claimCoin, BASE_URL } from '../services/api';
+import { GLView } from 'expo-gl';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { Asset } from 'expo-asset';
+import { Magnetometer, Accelerometer } from 'expo-sensors';
 
 const { width: W, height: H } = Dimensions.get('window');
 const CLAIM_RADIUS = 100; // 테스트를 위해 100m로 상향 (확실한 노출 확인용)
@@ -19,6 +24,13 @@ const CLAIM_RADIUS = 100; // 테스트를 위해 100m로 상향 (확실한 노�
 interface Treasure {
   id: string; name: string; lat: number; lng: number;
   coinReward: number; icon: string; radius: number;
+}
+
+interface Creature {
+  id: string; name: string; type: 'fire' | 'water' | 'grass' | 'electric';
+  modelUrl: string; spawnChance: number; // 0-1
+  catchDifficulty: number; // 0-1
+  icon: string;
 }
 
 // ── 파티클(폭죽) 한 개 ──────────────────────────────────────────
@@ -82,10 +94,160 @@ export default function ARScreen({ navigation }: any) {
   const [treasures,   setTreasures]   = useState<Treasure[]>([]);
   const [nearTreasure, setNearTreasure] = useState<Treasure | null>(null);
   const [distances,   setDistances]   = useState<Record<string, number>>({});
+  const [modelUrl, setModelUrl] = useState<string | undefined>();
+
+  // 크리처 데이터
+  const [creatures, setCreatures] = useState<Creature[]>([
+    { id: 'C001', name: '불꽃몬', type: 'fire', modelUrl: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf', spawnChance: 0.3, catchDifficulty: 0.4, icon: '🔥' },
+    { id: 'C002', name: '물방몬', type: 'water', modelUrl: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf', spawnChance: 0.3, catchDifficulty: 0.4, icon: '💧' },
+    { id: 'C003', name: '풀몬', type: 'grass', modelUrl: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf', spawnChance: 0.3, catchDifficulty: 0.4, icon: '🌿' },
+  ]);
+  const [nearCreature, setNearCreature] = useState<Creature | null>(null);
+  const [spawnedCreatures, setSpawnedCreatures] = useState<Array<Creature & { lat: number; lng: number }>>([]);
+  
+  // 기기 방향 (AR 효과용)
+  const [deviceOrientation, setDeviceOrientation] = useState({ alpha: 0, beta: 0, gamma: 0 });
+  const orientationSub = useRef<any>(null);
+
+  // 보물/크리처별 3D 모델 매핑 (실제 GLTF 파일로 교체 필요)
+  const modelMap: Record<string, string> = {
+    'T001': 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Coin/glTF/Coin.gltf',
+    'T002': 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Coin/glTF/Coin.gltf',
+    'C001': 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf',
+    'C002': 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf',
+    'C003': 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf',
+    // 기본 모델
+    'default': 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Coin/glTF/Coin.gltf',
+  };
+
+  // 크리처 스폰 함수
+  const spawnCreatures = useCallback(() => {
+    if (!myPos) return;
+    
+    const newSpawned = [...spawnedCreatures];
+    creatures.forEach(creature => {
+      if (Math.random() < creature.spawnChance && !newSpawned.find(c => c.id === creature.id)) {
+        // 사용자 위치 주변 100-500m 내 랜덤 스폰
+        const latOffset = (Math.random() - 0.5) * 0.01; // 약 1km 반경
+        const lngOffset = (Math.random() - 0.5) * 0.01;
+        newSpawned.push({
+          ...creature,
+          lat: myPos.lat + latOffset,
+          lng: myPos.lng + lngOffset,
+        });
+      }
+    });
+    setSpawnedCreatures(newSpawned);
+  }, [myPos, creatures, spawnedCreatures]);
+
+  // 근처 보물 변경 시 모델 URL 업데이트
+  useEffect(() => {
+    if (nearTreasure) {
+      setModelUrl(modelMap[nearTreasure.id] || modelMap['default']);
+    } else {
+      setModelUrl(undefined);
+    }
+  }, [nearTreasure]);
+
+  // ── 3D AR 씬 설정 (표면 감지 + 방향 가이드) ────────────────────────────────────────────────
+  const createARScene = useCallback((gl: any) => {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB); // 하늘색 배경 (AR 느낌)
+
+    const camera = new THREE.PerspectiveCamera(75, gl.drawingBufferWidth / gl.drawingBufferHeight, 0.1, 1000);
+    camera.position.set(0, 1.6, 0); // 사람 눈높이
+
+    const renderer = new THREE.WebGLRenderer({ canvas: gl, context: gl });
+    renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    // 조명 추가
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7);
+    scene.add(directionalLight);
+
+    // 가상 지면 (표면 감지 효과)
+    const groundGeometry = new THREE.PlaneGeometry(20, 20);
+    const groundMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0x808080, 
+      transparent: true, 
+      opacity: 0.3,
+      side: THREE.DoubleSide 
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -1;
+    scene.add(ground);
+
+    // 격자 무늬 (AR 그리드)
+    const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+    gridHelper.position.y = -1;
+    scene.add(gridHelper);
+
+    // 기본 3D 오브젝트 (GLTF 로드 실패 시 대체)
+    const geometry = new THREE.CylinderGeometry(1, 1, 0.2, 32);
+    const material = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
+    let treasureModel = new THREE.Mesh(geometry, material);
+    treasureModel.position.y = 0; // 지면 위에 배치
+
+    // GLTF 모델 로드 시도
+    if (modelUrl) {
+      const loader = new GLTFLoader();
+      loader.load(
+        modelUrl,
+        (gltf) => {
+          scene.remove(treasureModel);
+          treasureModel = gltf.scene;
+          treasureModel.position.y = 0;
+          scene.add(treasureModel);
+        },
+        undefined,
+        (error) => console.error('GLTF 로드 오류:', error)
+      );
+    } else {
+      scene.add(treasureModel);
+    }
+
+    // 방향 화살표 (목표물 방향 표시)
+    const arrowGeometry = new THREE.ConeGeometry(0.3, 1, 8);
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 });
+    const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+    arrow.position.set(0, 2, -3);
+    arrow.rotation.x = Math.PI / 2;
+    scene.add(arrow);
+
+    // 회전 애니메이션 + 기기 방향 반영
+    const animate = () => {
+      const frame = requestAnimationFrame(animate);
+      
+      // 기기 방향에 따른 카메라 회전 (AR 효과)
+      const alpha = deviceOrientation.alpha * (Math.PI / 180);
+      camera.rotation.y = alpha;
+
+      if (treasureModel) {
+        treasureModel.rotation.y += 0.01;
+      }
+      
+      // 화살표 깜빡임
+      arrow.material = new THREE.MeshBasicMaterial({ 
+        color: arrow.material.color,
+        transparent: true,
+        opacity: 0.5 + Math.sin(Date.now() * 0.005) * 0.5
+      });
+
+      renderer.render(scene, camera);
+      gl.endFrameEXP();
+    };
+    animate();
+
+    return { scene, camera, renderer };
+  }, [modelUrl, deviceOrientation]);
 
   // 위치
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
+  const spawnTimer = useRef<NodeJS.Timeout | null>(null);
 
   // UI 상태
   const [claiming,     setClaiming]     = useState(false);
@@ -131,7 +293,22 @@ export default function ARScreen({ navigation }: any) {
       ])
     ).start();
 
-    return () => { locationSub.current?.remove(); };
+    // 기기 방향 센서 구독
+    const subscribeOrientation = async () => {
+      Magnetometer.setUpdateInterval(100);
+      Accelerometer.setUpdateInterval(100);
+      
+      orientationSub.current = Magnetometer.addListener((data) => {
+        setDeviceOrientation(prev => ({ ...prev, alpha: data.alpha }));
+      });
+    };
+    subscribeOrientation();
+
+    return () => { 
+      locationSub.current?.remove(); 
+      if (spawnTimer.current) clearInterval(spawnTimer.current);
+      orientationSub.current?.remove();
+    };
   }, []);
 
   const fetchTreasures = async () => {
@@ -165,36 +342,54 @@ export default function ARScreen({ navigation }: any) {
         checkProximity(pos);
       }
     );
+
+    // 크리처 스폰 타이머 시작 (30초마다)
+    if (!spawnTimer.current) {
+      spawnTimer.current = setInterval(spawnCreatures, 30000);
+    }
   };
 
-  // ── Haversine 거리 계산 + 10m 이내 보물 감지 ─────────────────
+  // ── Haversine 거리 계산 + 10m 이내 보물/크리처 감지 ─────────────────
   const checkProximity = useCallback((pos: { lat: number; lng: number }) => {
-    if (treasures.length === 0) return;
+    // 보물 체크
+    if (treasures.length > 0) {
+      const dists: Record<string, number> = {};
+      let closest: Treasure | null = null;
+      let closestDist = Infinity;
 
-    const dists: Record<string, number> = {};
-    let closest: Treasure | null = null;
-    let closestDist = Infinity;
+      for (const t of treasures) {
+        if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
+        const d = haversine(pos.lat, pos.lng, t.lat, t.lng);
+        dists[t.id] = d;
+        if (d < closestDist) { closestDist = d; closest = t; }
+      }
+      setDistances(dists);
 
-    for (const t of treasures) {
-      // 데이터 유효성 검사 (좌표 누락 방지)
-      if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
-
-      const d = haversine(pos.lat, pos.lng, t.lat, t.lng);
-      dists[t.id] = d;
-      if (d < closestDist) { closestDist = d; closest = t; }
+      if (closest && closestDist <= CLAIM_RADIUS && !claimedThisSession.current.has(closest.id)) {
+        setNearTreasure(closest);
+        setNearCreature(null);
+        showCoinAnimation();
+      } else if (!closest || closestDist > CLAIM_RADIUS * 3) {
+        hideCoinAnimation();
+        setNearTreasure(null);
+      }
     }
 
-    setDistances(dists);
+    // 크리처 체크
+    const nearbyCreature = spawnedCreatures.find(c => {
+      const d = haversine(pos.lat, pos.lng, c.lat, c.lng);
+      return d <= 50; // 50m 이내 크리처 감지
+    });
 
-    if (closest && closestDist <= CLAIM_RADIUS && !claimedThisSession.current.has(closest.id)) {
-      setNearTreasure(closest);
+    if (nearbyCreature) {
+      setNearCreature(nearbyCreature);
+      setModelUrl(nearbyCreature.modelUrl);
       showCoinAnimation();
-    } else if (!closest || closestDist > CLAIM_RADIUS * 3) {
-      // 멀어지면 숨기기
+    } else if (nearCreature) {
+      setNearCreature(null);
       hideCoinAnimation();
-      setNearTreasure(null);
     }
-  }, [treasures]);
+  }, [treasures, spawnedCreatures, nearCreature]);
 
   // 보물 목록 로드 후 재계산
   useEffect(() => {
@@ -240,28 +435,41 @@ export default function ARScreen({ navigation }: any) {
     if (url) Linking.openURL(url);
   };
 
-  // ── 코인 획득 ────────────────────────────────────────────────
+  // ── 획득 처리 (보물/크리처) ─────────────────────────────────────────────────
   const handleClaim = async () => {
-    if (!nearTreasure || !myPos || !user || claiming) return;
+    if (!myPos || !user || claiming) return;
+    if (!nearTreasure && !nearCreature) return;
 
     setClaiming(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     try {
-      const res = await claimCoin({
-        userId:     user.id,
-        treasureId: nearTreasure.id,
-        lat:        myPos.lat,
-        lng:        myPos.lng,
-        deviceId:   Platform.OS + '_' + (user.id ?? 'anon'),
-      });
+      let earned = 0;
+      let msg = '';
+      
+      if (nearTreasure) {
+        const res = await claimCoin({
+          userId:     user.id,
+          treasureId: nearTreasure.id,
+          lat:        myPos.lat,
+          lng:        myPos.lng,
+          deviceId:   Platform.OS + '_' + (user.id ?? 'anon'),
+        });
+        earned = res.earned ?? nearTreasure.coinReward;
+        msg = `🎉 ${earned} 성동 코인 획득!`;
+        claimedThisSession.current.add(nearTreasure.id);
+        setNearTreasure(null);
+        await refreshBalance();
+      } else if (nearCreature) {
+        earned = 50; // 크리처 잡으면 50코인
+        msg = `🎉 ${nearCreature.name}을(를) 잡았다! +${earned} 코인`;
+        setSpawnedCreatures(prev => prev.filter(c => c.id !== nearCreature.id));
+        setNearCreature(null);
+      }
 
-      // 성공!
-      claimedThisSession.current.add(nearTreasure.id);
+      // 성공 피드백
       setShowConfetti(true);
-      setClaimMsg(`🎉 ${res.earned ?? nearTreasure.coinReward} 성동 코인 획득!`);
-
-      // 메시지 페이드인
+      setClaimMsg(msg);
       Animated.sequence([
         Animated.timing(msgOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
         Animated.delay(2500),
@@ -269,9 +477,6 @@ export default function ARScreen({ navigation }: any) {
       ]).start();
 
       hideCoinAnimation();
-      setNearTreasure(null);
-      await refreshBalance();
-
       setTimeout(() => setShowConfetti(false), 2000);
 
     } catch (e: any) {
@@ -281,11 +486,15 @@ export default function ARScreen({ navigation }: any) {
     }
   };
 
-  // 근처 보물 목록 (거리 순)
-  const nearbyList = treasures
-    .map(t => ({ ...t, dist: distances[t.id] ?? Infinity }))
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, 3);
+  // 근처 보물/크리처 목록 (거리 순)
+  const nearbyList = [
+    ...treasures.map(t => ({ ...t, dist: distances[t.id] ?? Infinity, type: 'treasure' as const })),
+    ...spawnedCreatures.map(c => ({ 
+      ...c, 
+      dist: myPos ? haversine(myPos.lat, myPos.lng, c.lat, c.lng) : Infinity, 
+      type: 'creature' as const 
+    })),
+  ].sort((a, b) => a.dist - b.dist).slice(0, 5);
 
   // 권한 없음 화면
   if (!camPerm?.granted) {
@@ -360,7 +569,7 @@ export default function ARScreen({ navigation }: any) {
       </SafeAreaView>
 
       {/* ── 레이더 펄스 (AR 탐색 중 표시) ── */}
-      {!nearTreasure && (
+      {!nearTreasure && !nearCreature && (
         <View style={styles.radarContainer} pointerEvents="none">
           <Animated.View style={[styles.radarRing, {
             transform: [{ scale: radarScale }],
@@ -369,6 +578,23 @@ export default function ARScreen({ navigation }: any) {
           <View style={styles.radarCenter}>
             <Text style={{ fontSize: 28 }}>📡</Text>
           </View>
+        </View>
+      )}
+
+      {/* ── 나침반 (방향 표시) ── */}
+      <View style={styles.compass} pointerEvents="none">
+        <Text style={styles.compassText}>N</Text>
+        <View style={[styles.compassArrow, { transform: [{ rotate: `${-deviceOrientation.alpha}deg` }] }]}>
+          <Text style={{ fontSize: 24 }}>↑</Text>
+        </View>
+      </View>
+
+      {/* ── 방향 가이드 (가장 가까운 대상) ── */}
+      {nearbyList.length > 0 && !nearTreasure && !nearCreature && (
+        <View style={styles.directionGuide}>
+          <Text style={styles.directionGuideText}>
+            {nearbyList[0].type === 'creature' ? '🎮' : '🪙'} {formatDistance(nearbyList[0].dist)}
+          </Text>
         </View>
       )}
 
@@ -390,8 +616,12 @@ export default function ARScreen({ navigation }: any) {
           }]}>
             {/* 빛 번짐 */}
             <View style={styles.coinGlow} />
-            {/* 코인 본체 */}
-            <Text style={styles.coinEmoji}>🪙</Text>
+            {/* 3D 코인 본체 */}
+            <GLView
+              key={modelUrl}
+              style={[styles.coinContainer, { backgroundColor: 'transparent' }]}
+              onContextCreate={(gl) => createARScene(gl)}
+            />
             {/* 반짝이 입자 */}
             {[...Array(6)].map((_, i) => (
               <Animated.View key={i} style={[
@@ -407,13 +637,15 @@ export default function ARScreen({ navigation }: any) {
             ))}
           </Animated.View>
 
-          {/* 터치 유도 텍스트 */}
-          <View style={styles.tapHint}>
-            <Text style={styles.tapHintText}>
-              {claiming ? '획득 중…' : '탭하여 잡기!'}
-            </Text>
-            <Text style={styles.tapHintSub}>{nearTreasure.name} — {nearTreasure.coinReward} SDP</Text>
-          </View>
+           {/* 터치 유도 텍스트 */}
+           <View style={styles.tapHint}>
+             <Text style={styles.tapHintText}>
+               {claiming ? '획득 중…' : nearCreature ? '탭하여 잡기!' : '탭하여 획득!'}
+             </Text>
+             <Text style={styles.tapHintSub}>
+               {nearCreature ? `${nearCreature.name} (${nearCreature.type})` : `${nearTreasure?.name} — ${nearTreasure?.coinReward} SDP`}
+             </Text>
+           </View>
         </TouchableOpacity>
       )}
 
@@ -528,10 +760,29 @@ const styles = StyleSheet.create({
   },
   claimMsgText: { color: '#FFF', fontSize: 18, fontWeight: '800' },
 
-  // 권한 화면
+   // 권한 화면
   permScreen:  { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   permTitle:   { color: '#FFF', fontSize: 22, fontWeight: '700', marginTop: 16, marginBottom: 8 },
   permSub:     { color: '#6B7EAB', fontSize: 14, textAlign: 'center', marginBottom: 24 },
   permBtn:     { backgroundColor: '#6366F1', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 16 },
   permBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
+  // 나침반
+  compass: {
+    position: 'absolute', top: H * 0.55, right: 20,
+    width: 60, height: 60, borderRadius: 30,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  compassText: { color: '#FF0000', fontSize: 14, fontWeight: '700', position: 'absolute', top: 2 },
+  compassArrow: { position: 'absolute' },
+
+  // 방향 가이드
+  directionGuide: {
+    position: 'absolute', bottom: 200, left: 20, right: 20,
+    backgroundColor: 'rgba(99,102,241,0.8)', borderRadius: 12,
+    padding: 12, alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  directionGuideText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

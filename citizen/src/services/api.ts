@@ -1,5 +1,5 @@
 // ─── 성동 패스 API 서비스 (Unified Backend) ───────────────────────────
-export const BASE_URL = 'https://sdp-backend-y2aq.onrender.com'; 
+export const BASE_URL = 'https://sdp-backend-m09z.onrender.com'; 
 
 async function request(path: string, options: RequestInit = {}) {
   const cleanBase = BASE_URL.replace(/\/+$/, '');

@@ -1,5 +1,5 @@
 // ── 관리자 API 서비스 ──────────────────────────────────────────
-const BASE = 'https://sdp-backend-y2aq.onrender.com';
+const BASE = 'https://sdp-backend-m09z.onrender.com';
 const KEY  = import.meta.env.VITE_ADMIN_KEY || 'SDP_ADMIN_2026';
 
 const headers = () => ({

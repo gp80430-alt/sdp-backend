@@ -6,11 +6,12 @@ const CENTER = { lat: 37.550473, lng: 127.024915 };
 const MAX_MARKERS = 10;
 
 interface TreasureMarker {
-  id:   string;
-  lat:  number;
-  lng:  number;
-  name: string;
+  id:         string;
+  lat:        number;
+  lng:        number;
+  name:       string;
   coinReward: number;
+  radius:     number;
 }
 
 interface PolygonCoord { lat: number; lng: number; }
@@ -22,20 +23,6 @@ declare global {
     __GMAPS_LOADED__: boolean;
     __GMAPS_CALLBACKS__: (() => void)[];
   }
-}
-
-// Google Maps API 동적 로드
-function loadGoogleMaps(apiKey: string): Promise<void> {
-  return new Promise((resolve) => {
-    if (window.__GMAPS_LOADED__) { resolve(); return; }
-    window.__GMAPS_CALLBACKS__.push(resolve);
-    if (document.querySelector('#gmaps-script')) return;
-    const script = document.createElement('script');
-    script.id  = 'gmaps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=drawing&callback=initGoogleMaps`;
-    script.async = true;
-    document.head.appendChild(script);
-  });
 }
 
 export default function MapControl() {
@@ -57,19 +44,18 @@ export default function MapControl() {
 
   const apiKey = import.meta.env.VITE_GMAPS_KEY || '';
 
-  // Google Maps API 동적 로드 (geometry 라이브러리 추가)
-  function loadGoogleMaps(apiKey: string): Promise<void> {
-    return new Promise((resolve) => {
+  // Google Maps API 동적 로드 (drawing + geometry 라이브러리)
+  const loadGoogleMaps = (key: string): Promise<void> =>
+    new Promise((resolve) => {
       if (window.__GMAPS_LOADED__) { resolve(); return; }
       window.__GMAPS_CALLBACKS__.push(resolve);
       if (document.querySelector('#gmaps-script')) return;
       const script = document.createElement('script');
       script.id  = 'gmaps-script';
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=drawing,geometry&callback=initGoogleMaps`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=drawing,geometry&callback=initGoogleMaps`;
       script.async = true;
       document.head.appendChild(script);
     });
-  }
 
   // ── 지도 초기화 및 데이터 로드 ─────────────────────────────────────
   useEffect(() => {
@@ -129,16 +115,41 @@ export default function MapControl() {
 
           // 2. 마커 복원
           if (eventData.treasure_spots) {
-            const ms = eventData.treasure_spots.map((s: any) => {
+            const ms = eventData.treasure_spots.map((s: any, idx: number) => {
+              const spotId = s.id || `T${Date.now()}_${idx}`;
               const gMarker = new window.google.maps.Marker({
                 position: { lat: s.lat, lng: s.lng },
-                map: map,
+                map,
                 draggable: true,
                 title: s.name,
-                icon: 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png'
+                label: { text: `${idx + 1}`, color: '#fff', fontWeight: 'bold', fontSize: '12px' },
+                icon: {
+                  path: window.google.maps.SymbolPath.CIRCLE,
+                  scale: 16,
+                  fillColor: '#7C3AED',
+                  fillOpacity: 1,
+                  strokeColor: '#fff',
+                  strokeWeight: 2,
+                },
               });
-              markersRef.current.push(gMarker);
-              return { id: s.id, lat: s.lat, lng: s.lng, name: s.name, coinReward: s.coinReward };
+
+              const markerData: TreasureMarker = {
+                id: spotId, lat: s.lat, lng: s.lng,
+                name: s.name, coinReward: s.coinReward ?? 1, radius: s.radius ?? 30,
+              };
+
+              // 드래그 완료 시 상태 업데이트
+              gMarker.addListener('dragend', (e: any) => {
+                setMarkers(ms => ms.map(m => m.id === spotId
+                  ? { ...m, lat: e.latLng.lat(), lng: e.latLng.lng() }
+                  : m));
+              });
+
+              // 클릭 시 편집 모달
+              gMarker.addListener('click', () => setEditMarker(markerData));
+
+              markersRef.current.push({ id: spotId, gMarker });
+              return markerData;
             });
             setMarkers(ms);
           }
@@ -199,7 +210,7 @@ export default function MapControl() {
       }
       // 고유 ID 생성 (타임스탬프 활용)
       const uniqueId = `T${Date.now()}`;
-      const newMarker: TreasureMarker = { id: uniqueId, lat, lng, name: `보물 스팟 ${prev.length + 1}`, coinReward: 1 };
+      const newMarker: TreasureMarker = { id: uniqueId, lat, lng, name: `보물 스팟 ${prev.length + 1}`, coinReward: 1, radius: 30 };
 
       // 구글 맵 마커 생성
       const gMarker = new window.google.maps.Marker({
@@ -519,8 +530,10 @@ export default function MapControl() {
                     <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>
                       {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
                     </div>
-                    <div style={{ color: 'var(--yellow)', fontSize: 11, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ color: 'var(--yellow)', fontSize: 11, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                       🪙 <span>{m.coinReward} SDP</span>
+                      <span style={{ color: 'var(--text-muted)' }}>|</span>
+                      <span style={{ color: 'var(--text-muted)' }}>📡 {m.radius ?? 30}m</span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -575,6 +588,7 @@ function MarkerEditModal({ marker, onSave, onClose, onDelete }: {
 }) {
   const [name,   setName]   = useState(marker.name);
   const [reward, setReward] = useState(marker.coinReward);
+  const [radius, setRadius] = useState(marker.radius ?? 30);
   const [lat,    setLat]    = useState(marker.lat);
   const [lng,    setLng]    = useState(marker.lng);
 
@@ -582,7 +596,7 @@ function MarkerEditModal({ marker, onSave, onClose, onDelete }: {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-title">📍 보물 스팟 편집</div>
-        
+
         <div style={{ marginBottom: 12 }}>
           <label className="form-label">스팟 이름</label>
           <input className="form-input" value={name} onChange={e => setName(e.target.value)} />
@@ -591,34 +605,36 @@ function MarkerEditModal({ marker, onSave, onClose, onDelete }: {
         <div style={{ marginBottom: 12 }}>
           <label className="form-label">위치 정보 (위도, 경도)</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input 
-              className="form-input" 
-              type="number" 
-              step="0.000001" 
-              value={lat} 
-              onChange={e => setLat(parseFloat(e.target.value))} 
+            <input
+              className="form-input"
+              type="number" step="0.000001" value={lat}
+              onChange={e => setLat(parseFloat(e.target.value))}
               style={{ flex: 1 }}
             />
-            <input 
-              className="form-input" 
-              type="number" 
-              step="0.000001" 
-              value={lng} 
-              onChange={e => setLng(parseFloat(e.target.value))} 
+            <input
+              className="form-input"
+              type="number" step="0.000001" value={lng}
+              onChange={e => setLng(parseFloat(e.target.value))}
               style={{ flex: 1 }}
             />
           </div>
         </div>
 
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 12 }}>
           <label className="form-label">코인 보상 (SDP)</label>
-          <input className="form-input" type="number" min={1} max={10} value={reward}
+          <input className="form-input" type="number" min={1} max={100} value={reward}
             onChange={e => setReward(Number(e.target.value))} />
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label className="form-label">획득 반경 (m) — 현재: {radius}m</label>
+          <input className="form-input" type="number" min={5} max={500} value={radius}
+            onChange={e => setRadius(Number(e.target.value))} />
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" style={{ flex: 1 }}
-            onClick={() => onSave({ ...marker, name, coinReward: reward, lat, lng })}>저장</button>
+            onClick={() => onSave({ ...marker, name, coinReward: reward, lat, lng, radius })}>저장</button>
           <button className="btn btn-danger" onClick={onDelete}>삭제</button>
           <button className="btn btn-ghost" onClick={onClose}>취소</button>
         </div>

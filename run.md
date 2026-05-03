@@ -4,23 +4,27 @@
 
 ---
 
-## 1. 🖥️ 관리자 대시보드 (Admin Dashboard)
-관리자가 보물 스팟을 배치하고 통계를 모니터링하는 웹 페이지입니다.
+## 🌐 외부망 접속 주소 (전 세계 어디서든 접속 가능)
 
-*   **외부 주소 (인터넷):** [https://serene-beijinho-d5a2ae.netlify.app/](https://serene-beijinho-d5a2ae.netlify.app/)
+| 서비스명 | 접속 주소 (URL) | 비고 |
+| :--- | :--- | :--- |
+| **관리자 대시보드** | [https://serene-beijinho-d5a2ae.netlify.app/](https://serene-beijinho-d5a2ae.netlify.app/) | 보물 스팟 관리 및 통계 |
+| **시민용 웹 (Citizen Web)** | [https://fascinating-dolphin-da52c7.netlify.app/](https://fascinating-dolphin-da52c7.netlify.app/) | 모바일 브라우저용 시민 앱 |
+| **백엔드 API 서버** | [https://sdp-backend-m09z.onrender.com](https://sdp-backend-m09z.onrender.com) | 서버 상태 확인: [/health](https://sdp-backend-m09z.onrender.com/health) |
+
+---
+
+## 1. 🖥️ 관리자 대시보드 (Admin Dashboard)
 *   **로컬 실행 방법:**
     ```powershell
     cd "d:\박영수\1.프로그램\SDP\admin"
     npm run dev
     ```
     *   접속: `http://localhost:5173`
-*   **주요 기능:** 보물 스팟 좌표 수동 입력/수정, 실시간 모니터링, 사용자 관리
 
 ---
 
-## 2. 📱 시민용 앱 (Citizen App)
-일반 사용자가 AR로 코인을 획득하고 결제에 사용하는 모바일 앱입니다.
-
+## 2. 📱 시민용 앱 (Citizen App - Mobile)
 *   **실행 방법 (테스트):**
     1.  스마트폰에 **'Expo Go'** 앱 설치
     2.  로컬 터미널 실행:
@@ -29,33 +33,24 @@
         npx expo start --tunnel
         ```
     3.  화면의 **QR 코드를 스캔**하여 접속
-*   **특징:** `--tunnel` 옵션을 통해 외부 네트워크에서도 실시간 테스트 가능
 
 ---
 
 ## 3. ⚙️ 백엔드 및 인프라 (Backend & Infrastructure)
-시스템의 데이터와 블록체인 연동을 담당하는 핵심 요소입니다.
-
-*   **백엔드 API 서버 (Python):** 
-    *   외부 주소: `https://sdp-backend-m09z.onrender.com` (자동 배포됨)
-    *   로컬 실행:
-        ```powershell
-        cd "d:\박영수\1.프로그램\SDP\server_py"
-        python main.py
-        ```
-*   **데이터베이스:** Supabase PostgreSQL (사용자 및 스팟 데이터 저장)
-*   **블록체인:** Ethereum Sepolia Testnet (SDP 코인 발행 및 전송)
+*   **로컬 실행:**
+    ```powershell
+    cd "d:\박영수\1.프로그램\SDP\server_py"
+    python main.py
+    ```
+*   **데이터베이스:** Supabase PostgreSQL
+*   **블록체인:** Ethereum Sepolia Testnet
 
 ---
 
-## 🛠️ 유지보수 및 업데이트 가이드
-1.  **코드 수정 후 반영:**
-    *   로컬에서 소스 수정 -> `git add .` -> `git commit` -> `git push`
-    *   GitHub에 푸시되면 Render(백엔드)와 Netlify(프론트엔드)가 **자동으로 빌드 및 재배포**를 시작합니다.
-2.  **보안 관리:**
-    *   GitHub 토큰(PAT)은 본인의 비밀번호와 같으므로 타인에게 노출되지 않도록 주의하십시오.
-3.  **데이터 관리:**
-    *   보물 스팟의 정확한 위치값(위도, 경도)은 관리자 대시보드 내 **'지도 관리'** 메뉴에서 언제든 직접 수정할 수 있습니다.
+## 🛠️ 통합 빌드 및 동기화 스크립트 사용법
+수정된 내용을 외부 서버에 반영하려면 다음 스크립트를 사용하세요:
+1.  **전체 빌드**: `.\build_sdp.cmd` (Admin, Citizen Web, Contract 일괄 빌드)
+2.  **GitHub 동기화**: `.\git_sync.cmd` (수정 사항 업로드 및 자동 재배포 트리거)
 
 ---
 **성동구의 스마트한 미래, 성동 패스와 함께하세요!**

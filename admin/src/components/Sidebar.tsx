@@ -1,12 +1,45 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { getStats } from '../services/api';
 
 const NAV = [
   { to: '/',    icon: '📊', label: '대시보드' },
   { to: '/map', icon: '🗺️', label: '지도 & 행사 관리' },
 ];
 
+type ConnStatus = 'checking' | 'online' | 'demo' | 'offline';
+
+function useServerStatus() {
+  const [status, setStatus] = useState<ConnStatus>('checking');
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const s = await getStats();
+        setStatus(s.demo_mode ? 'demo' : 'online');
+      } catch {
+        setStatus('offline');
+      }
+    };
+    check();
+    const id = setInterval(check, 20000);
+    return () => clearInterval(id);
+  }, []);
+
+  return status;
+}
+
+const STATUS_CONFIG: Record<ConnStatus, { dot: string; label: string; color: string }> = {
+  checking: { dot: '🔄', label: '연결 확인 중…', color: '#94A3B8' },
+  online:   { dot: '🟢', label: '서버 연결됨',   color: '#10B981' },
+  demo:     { dot: '🟡', label: '데모 모드',      color: '#F59E0B' },
+  offline:  { dot: '🔴', label: '서버 미연결',    color: '#EF4444' },
+};
+
 export default function Sidebar() {
+  const status = useServerStatus();
+  const cfg = STATUS_CONFIG[status];
+
   return (
     <aside style={styles.sidebar}>
       {/* 로고 */}
@@ -31,6 +64,16 @@ export default function Sidebar() {
       </nav>
 
       <div style={styles.footer}>
+        {/* 서버 연결 상태 */}
+        <div style={{
+          ...styles.statusBadge,
+          borderColor: `${cfg.color}44`,
+          background: `${cfg.color}14`,
+        }}>
+          <span style={{ fontSize: 10 }}>{cfg.dot}</span>
+          <span style={{ color: cfg.color, fontWeight: 600, fontSize: 11 }}>{cfg.label}</span>
+        </div>
+
         <div style={styles.footerBadge}>🔗 블록체인 연동</div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
           성동구청 디지털정책팀<br />v1.0.0
@@ -62,10 +105,15 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--accent-glow)', color: '#FFF',
     fontWeight: 700, boxShadow: 'inset 0 0 0 1px var(--border-glow)',
   },
-  footer: { padding: '16px 20px', borderTop: '1px solid var(--border)' },
+  footer: { padding: '16px 20px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 },
+  statusBadge: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    fontSize: 11, padding: '5px 10px', borderRadius: 8,
+    border: '1px solid', marginBottom: 2,
+  },
   footerBadge: {
     fontSize: 11, padding: '4px 10px', borderRadius: 6,
     background: 'rgba(99,102,241,0.15)', color: 'var(--accent)',
-    display: 'inline-block', marginBottom: 6,
+    display: 'inline-block',
   },
 };

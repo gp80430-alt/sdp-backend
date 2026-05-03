@@ -25,16 +25,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const saved = localStorage.getItem('sdp_user');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      setUser(parsed);
-      api.getMe(parsed.id).then(me => {
-        const updated = { ...parsed, balance: me.balance, title: me.title };
-        setUser(updated);
-        localStorage.setItem('sdp_user', JSON.stringify(updated));
-      }).catch(() => {}).finally(() => setLoading(false));
-    } else {
-      setLoading(false);
+      let parsed: User | null = null;
+      try { parsed = JSON.parse(saved); } catch { localStorage.removeItem('sdp_user'); }
+      if (parsed) {
+        setUser(parsed);
+        api.getMe(parsed.id).then(me => {
+          const updated = { ...parsed!, balance: me.balance, title: me.title };
+          setUser(updated);
+          localStorage.setItem('sdp_user', JSON.stringify(updated));
+        }).catch(() => {}).finally(() => setLoading(false));
+        return;
+      }
     }
+    setLoading(false);
   }, []);
 
   const login = async (name: string) => {

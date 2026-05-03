@@ -30,22 +30,25 @@ export const HomeView = ({ onNavigate }: { onNavigate: (view: string) => void })
       </div>
 
       {/* 코인 카드 */}
-      <motion.div 
+      <motion.div
+        key={user?.balance}
+        initial={{ scale: 0.97, opacity: 0.8 }}
+        animate={{ scale: 1, opacity: 1 }}
         whileHover={{ scale: 1.02 }}
-        className="glass pulse-primary" 
-        style={{ 
-          background: 'var(--grad-main)', 
-          padding: '30px', 
+        className="glass pulse-primary"
+        style={{
+          background: 'var(--grad-main)',
+          padding: '30px',
           borderRadius: '30px',
           marginBottom: '30px',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
         <div style={{ position: 'absolute', right: '-20px', top: '-20px', fontSize: '120px', opacity: 0.2 }}>🪙</div>
         <p style={{ fontSize: '14px', opacity: 0.8, marginBottom: '5px' }}>현재 보유 코인</p>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-          <span style={{ fontSize: '48px', fontWeight: 800 }}>{user?.balance || 0}</span>
+          <span style={{ fontSize: '48px', fontWeight: 800 }}>{user?.balance ?? 0}</span>
           <span style={{ fontSize: '18px', fontWeight: 600, opacity: 0.9 }}>SDP</span>
         </div>
       </motion.div>
@@ -90,9 +93,8 @@ export const HomeView = ({ onNavigate }: { onNavigate: (view: string) => void })
             <ChevronRight size={18} color="var(--text-dim)" />
           </div>
         ))}
-        {/* 버전 표시 */}
-        <div style={{ textAlign: 'center', marginTop: '30px', opacity: 0.3, fontSize: '12px' }}>
-          SDP v2.1.0 (PROXIMITY_FIX_APPLIED)
+        <div style={{ textAlign: 'center', marginTop: '30px', opacity: 0.3, fontSize: '11px' }}>
+          성동 스마트 패스 v2.1.0
         </div>
       </div>
     </div>
