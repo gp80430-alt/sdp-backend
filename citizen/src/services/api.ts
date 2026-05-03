@@ -1,5 +1,6 @@
 // ─── 성동 패스 API 서비스 (Unified Backend) ───────────────────────────
-export const BASE_URL = 'https://sdp-backend-m09z.onrender.com'; 
+// 로컬 네트워크 테스트용 (폰 접속 가능)
+export const BASE_URL = 'http://192.168.219.100:8000'; 
 
 async function request(path: string, options: RequestInit = {}) {
   const cleanBase = BASE_URL.replace(/\/+$/, '');

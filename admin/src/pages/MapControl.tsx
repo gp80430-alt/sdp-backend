@@ -31,6 +31,8 @@ export default function MapControl() {
   const drawingMgrRef = useRef<any>(null);
   const polygonRef    = useRef<any>(null);
   const markersRef    = useRef<any[]>([]);
+  const circlesRef    = useRef<any[]>([]);
+
 
   const [markers,       setMarkers]       = useState<TreasureMarker[]>([]);
   const [polygonCoords, setPolygonCoords] = useState<PolygonCoord[]>([]);
@@ -133,12 +135,29 @@ export default function MapControl() {
                 },
               });
 
+              // 반경 표시용 원 추가
+              const gCircle = new window.google.maps.Circle({
+                map,
+                center: { lat: s.lat, lng: s.lng },
+                radius: s.radius || 30,
+                fillColor: '#7C3AED',
+                fillOpacity: 0.15,
+                strokeColor: '#7C3AED',
+                strokeOpacity: 0.4,
+                strokeWeight: 1,
+                clickable: false,
+              });
+
               const markerData: TreasureMarker = {
                 id: spotId, lat: s.lat, lng: s.lng,
                 name: s.name, coinReward: s.coinReward ?? 1, radius: s.radius ?? 30,
               };
 
               // 드래그 완료 시 상태 업데이트
+              gMarker.addListener('drag', (e: any) => {
+                gCircle.setCenter(e.latLng);
+              });
+
               gMarker.addListener('dragend', (e: any) => {
                 setMarkers(ms => ms.map(m => m.id === spotId
                   ? { ...m, lat: e.latLng.lat(), lng: e.latLng.lng() }
@@ -149,6 +168,8 @@ export default function MapControl() {
               gMarker.addListener('click', () => setEditMarker(markerData));
 
               markersRef.current.push({ id: spotId, gMarker });
+              circlesRef.current.push({ id: spotId, gCircle });
+
               return markerData;
             });
             setMarkers(ms);
@@ -191,15 +212,21 @@ export default function MapControl() {
   // ── 마커 상태와 실제 지도 마커 동기화 ────────────────────────────────
   useEffect(() => {
     markers.forEach(m => {
-      const ref = markersRef.current.find(r => r.id === m.id);
-      if (ref && ref.gMarker) {
-        const pos = ref.gMarker.getPosition();
+      const mRef = markersRef.current.find(r => r.id === m.id);
+      if (mRef && mRef.gMarker) {
+        const pos = mRef.gMarker.getPosition();
         if (pos && (pos.lat() !== m.lat || pos.lng() !== m.lng)) {
-          ref.gMarker.setPosition({ lat: m.lat, lng: m.lng });
+          mRef.gMarker.setPosition({ lat: m.lat, lng: m.lng });
         }
+      }
+      const cRef = circlesRef.current.find(r => r.id === m.id);
+      if (cRef && cRef.gCircle) {
+        cRef.gCircle.setCenter({ lat: m.lat, lng: m.lng });
+        cRef.gCircle.setRadius(m.radius);
       }
     });
   }, [markers]);
+
 
   // ── 마커 추가 ────────────────────────────────────────────────
   const addMarkerAt = useCallback((lat: number, lng: number) => {
@@ -232,6 +259,24 @@ export default function MapControl() {
         },
       });
 
+      // 반경 표시용 원 생성
+      const gCircle = new window.google.maps.Circle({
+        map: googleMapRef.current,
+        center: { lat, lng },
+        radius: newMarker.radius,
+        fillColor: '#7C3AED',
+        fillOpacity: 0.15,
+        strokeColor: '#7C3AED',
+        strokeOpacity: 0.4,
+        strokeWeight: 1,
+        clickable: false,
+      });
+
+      // 드래그 중 원 위치 동기화
+      gMarker.addListener('drag', (e: any) => {
+        gCircle.setCenter(e.latLng);
+      });
+
       // 드래그 완료 시 좌표 업데이트
       gMarker.addListener('dragend', (e: any) => {
         const newLat = e.latLng.lat();
@@ -245,6 +290,8 @@ export default function MapControl() {
       });
 
       markersRef.current.push({ id: uniqueId, gMarker });
+      circlesRef.current.push({ id: uniqueId, gCircle });
+
       return [...prev, newMarker];
     });
   }, []);
@@ -260,13 +307,19 @@ export default function MapControl() {
 
   // ── 마커 삭제 ────────────────────────────────────────────────
   const deleteMarker = (id: string) => {
-    const ref = markersRef.current.find(r => r.id === id);
-    if (ref) { 
-      ref.gMarker.setMap(null); 
+    const mRef = markersRef.current.find(r => r.id === id);
+    if (mRef) { 
+      mRef.gMarker.setMap(null); 
       markersRef.current = markersRef.current.filter(r => r.id !== id); 
+    }
+    const cRef = circlesRef.current.find(r => r.id === id);
+    if (cRef) {
+      cRef.gCircle.setMap(null);
+      circlesRef.current = circlesRef.current.filter(r => r.id !== id);
     }
     setMarkers(prev => prev.filter(m => m.id !== id));
   };
+
 
   // ── [추가] 마커 위치로 지도 이동 ──────────────────────────────
   const moveToMarker = (m: TreasureMarker) => {

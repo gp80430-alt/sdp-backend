@@ -33,6 +33,10 @@
         "ACCESS_COARSE_LOCATION"
       ]
     },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": [
       ["expo-camera", { "cameraPermission": "AR 보물찾기를 위해 카메라 권한이 필요합니다." }],
       ["expo-location", { "locationAlwaysAndWhenInUsePermission": "보물 위치 탐색을 위해 위치 권한이 필요합니다." }]

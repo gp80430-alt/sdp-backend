@@ -8,14 +8,11 @@ module.exports = {
     settings: { optimizer: { enabled: true, runs: 200 } },
   },
   networks: {
-    // 로컬 테스트
     localhost: { url: "http://127.0.0.1:8545" },
-    // 테스트넷 (Sepolia)
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || "",
       accounts: process.env.ADMIN_PRIVATE_KEY ? [process.env.ADMIN_PRIVATE_KEY] : [],
     },
-    // 메인넷 (실제 배포)
     mainnet: {
       url: process.env.MAINNET_RPC_URL || "",
       accounts: process.env.ADMIN_PRIVATE_KEY ? [process.env.ADMIN_PRIVATE_KEY] : [],
